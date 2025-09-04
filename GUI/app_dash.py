@@ -1,4 +1,10 @@
+# pip install dash
+# pip install dash-bootstrap-components
+# pip install plotly
+# pip install pandas
+# pip install numpy
 
+#run by clicking the http://..... link in terminal
 
 
 import dash
@@ -428,4 +434,5 @@ def update_dashboard(n, threat_level, confidence_threshold):
 
 # Run the app 
 if __name__ == '__main__':
+
     app.run(debug=True, port=8050)  # NOT app.run_server
