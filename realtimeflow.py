@@ -19,7 +19,8 @@ import sys
 from pathlib import Path
 
 class CSVDataSimulator:
-    def __init__(self, csv_file="Both_dataset.csv"):
+    def __init__(self, csv_file="send_a_fake_command_modbus.csv"): #change the csv file to the file name you wanted, or just leave it blank
+                                                                    #The progam will list out all available csv
         self.csv_file = csv_file
         self.data = None
         self.running = False
