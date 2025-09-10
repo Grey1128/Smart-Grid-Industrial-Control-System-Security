@@ -1,0 +1,11 @@
+numby
+matplotlib
+pandas
+tensorflow
+keras
+scikit-learn
+pandas-datareader
+yfinance
+requests_html
+TA-lib
+plotly
