@@ -116,7 +116,7 @@ def modelfeatures(scaled_df, modeltype):
         ]
         
     elif modeltype == 'isolation forest':
-        features = {
+        features = [
             'response_time',
             'time_dif',
             'func_code',
@@ -125,19 +125,18 @@ def modelfeatures(scaled_df, modeltype):
             'source_encoded',
             'dest_encoded',
             'Time'
-        }
+        ]
     return features
 
 def modelbuild(df, features, modeltype):
     if modeltype == 'isolation forest':
-        model = IsolationForest(n_estimators=100, features=1.0, contamination=0.1).fit(features)
         X = df[features]
-        model.fit(X)
+        model = IsolationForest(n_estimators=100, contamination=0.1).fit(X)
         predictions = model.predict(X)
         normal_anomalies = np.sum(predictions == -1)
 
         print(f"Features used: {features}")
-        print(f"Flagged {predictions}/{len(X)} samples as potential anomalies in clean data")
+        # print(f"Flagged {predictions}/{len(X)} samples as potential anomalies in clean data") #this doesnt work right now 
 
         return model
     
@@ -153,7 +152,7 @@ def modelbuild(df, features, modeltype):
 
         print(f"X contains NaN: {np.isnan(X).any()}\nY contains NaN: {np.isnan(y).any()}")
 
-        X_train, X_test = train_test_split(X, test_size=0.2, random_state=42)
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
         
         #input shape is: sequence length, number of features (30, 5)
         model = Sequential()
@@ -169,8 +168,7 @@ def modelbuild(df, features, modeltype):
         model.compile(optimizer=Adam(learning_rate=0.001), loss='mean_absolute_error')
         model.summary
         #[:, -1, :] = all sequences, last timestep, all features 
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
-        model.fit(X_train, y_train, epochs=200, batch_size=64, validation_data=(X_test, y_test), verbose=1)
+        model.fit(X_train, y_train, epochs=300, batch_size=64, validation_data=(X_test, y_test), verbose=1)
         predictions = model.predict(X_train)
         train_mse = np.mean(np.square((predictions) - X_train[:, -1, :]), axis=1)
         
@@ -181,15 +179,16 @@ def modelbuild(df, features, modeltype):
     
 def modelsave(model, string):
     date = dt.datetime.now()
-    datestring = date.strftime("%Y-%m-%d %H:%M:%S")
-    filename = f"{string}_{datestring}.pk1"
+    datestring = date.strftime("%Y-%m-%d %H-%M-%S")
+    filename = f"{string}_Modbus_{datestring}.pk1"
 
     if not os.path.isdir("models"):
         os.mkdir("models")
         print("models directory created\n")
     os.chdir("models")
-    with open(filename, 'wb') as file:
-        pickle.dump(model, file)
+    pickle.dump(model, open(filename, 'wb'))
+    os.chdir("..")
+
 
 
 def main():
@@ -202,7 +201,7 @@ def main():
     scaler, scaled_df = processing(resp_df)
     isof_features = modelfeatures(scaled_df, 'isolation forest') 
     lstm_features = modelfeatures(scaled_df, 'lstm')
-    isof_model = modelbuild(None, isof_features, 'isolation forest')
+    isof_model = modelbuild(scaled_df, isof_features, 'isolation forest')
     lstm_model = modelbuild(scaled_df, lstm_features, 'lstm')
     modelsave(lstm_model, 'lstm')
     modelsave(isof_model, 'isolation_forest')
