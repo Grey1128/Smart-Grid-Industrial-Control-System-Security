@@ -87,7 +87,7 @@ def processing(df):
     df['direction_binary'] = (df['direction'] == 'Query').astype(int)
     df['response_time'].fillna(df['response_time'].median(), inplace=True)
 
-    #Difference between each message, beginning at 0 for the NAN value in first index
+    # Difference between each message, beginning at 0 for the NAN value in first index
     df['time_dif'] = df['Time'].diff().fillna(0)
 
     scaling_features = ['Time', 'response_time', 'time_dif']
@@ -154,7 +154,7 @@ def modelbuild(df, features, modeltype):
 
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
         
-        #input shape is: sequence length, number of features (30, 5)
+        # input shape is: sequence length, number of features (30, 5)
         model = Sequential()
         model.add(LSTM(units=50, activation='relu', return_sequences=True,  input_shape=(X_train.shape[1], X_train.shape[2])))
         model.add(Dropout(0.2))
@@ -167,7 +167,7 @@ def modelbuild(df, features, modeltype):
         model.add(Dense(X_train.shape[2], activation='linear'))
         model.compile(optimizer=Adam(learning_rate=0.001), loss='mean_absolute_error')
         model.summary
-        #[:, -1, :] = all sequences, last timestep, all features 
+        # [:, -1, :] = all sequences, last timestep, all features 
         model.fit(X_train, y_train, epochs=300, batch_size=64, validation_data=(X_test, y_test), verbose=1)
         predictions = model.predict(X_train)
         train_mse = np.mean(np.square((predictions) - X_train[:, -1, :]), axis=1)
