@@ -100,10 +100,10 @@ def modelbuild(df, features, modeltype):
 
         return model   
     
-def modelsave(model, string):
+def modelsave(model, modname, prot):
     date = dt.datetime.now()
     datestring = date.strftime("%Y-%m-%d %H-%M-%S")
-    filename = f"{string}_Modbus_{datestring}.pk1"
+    filename = f"{modname}_{prot}_{datestring}.pk1"
 
     if not os.path.isdir("models"):
         os.mkdir("models")
@@ -123,8 +123,8 @@ def modbus(MB_df):
     lstm_features = modelfeaturesMB(scaled_df, 'lstm')
     isof_model = modelbuild(scaled_df, isof_features, 'isolation forest')
     lstm_model = modelbuild(scaled_df, lstm_features, 'lstm')
-    modelsave(lstm_model, 'lstm')
-    modelsave(isof_model, 'isolation_forest')
+    modelsave(lstm_model, 'lstm', 'MODBUS')
+    modelsave(isof_model, 'isolation_forest', 'MODBUS')
 
 def tcp(TCP_df):
     uniquesrc, uniquedest, uniquelist = iplist(TCP_df)
@@ -137,8 +137,8 @@ def tcp(TCP_df):
     lstm_features = modelfeaturesTCP(scaled_df, 'lstm')
     isof_model = modelbuild(scaled_df, isof_features, 'isolation forest')
     lstm_model = modelbuild(scaled_df, lstm_features, 'lstm')
-    modelsave(lstm_model, 'lstm')
-    modelsave(isof_model, 'isolation_forest')
+    modelsave(lstm_model, 'lstm', 'TCP')
+    modelsave(isof_model, 'isolation_forest', 'TCP')
 
 def iplist(df):
     uniquesrc = df['Source'].unique()
