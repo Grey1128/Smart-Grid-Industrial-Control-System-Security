@@ -4,20 +4,6 @@ import pandas as pd
 import datetime as dt
 import os
 
-<<<<<<< HEAD
-=======
-import pickle
-from keras.models import Sequential
-from keras.layers import Dense, Dropout, LSTM, InputLayer
-from keras.optimizers import Adam
-from sklearn.ensemble import IsolationForest
-from sklearn.preprocessing import MinMaxScaler, StandardScaler, LabelEncoder
-from sklearn import preprocessing
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score, accuracy_score
-from sklearn.impute import KNNImputer, SimpleImputer
-
->>>>>>> 8b570d96d6cc553dba2dff04e1b9e7824daeb381
 print('Libraries imported.....')
 
 def timeprocessTCP(df):
@@ -27,11 +13,7 @@ def timeprocessTCP(df):
     #initialise
     time_differences = []
     processed_indeces = set()
-<<<<<<< HEAD
     df['response_time'] = np.nan
-=======
-    df['reponse_time'] = np.nan
->>>>>>> 8b570d96d6cc553dba2dff04e1b9e7824daeb381
 
     for i in range(len(df)):
         if i in processed_indeces:
@@ -80,17 +62,10 @@ def modelfeaturesTCP(scaled_df, modeltype):
             'response_time',
             'time_dif',
             'Flag_encode',
-<<<<<<< HEAD
             'Seq',
             'Ack',
             'Win',
             'Len',
-=======
-            'Seq'
-            'Ack'
-            'Win'
-            'Len'
->>>>>>> 8b570d96d6cc553dba2dff04e1b9e7824daeb381
             'MSS'
         ]
         
@@ -98,7 +73,6 @@ def modelfeaturesTCP(scaled_df, modeltype):
         features = [
             'response_time',
             'time_dif',
-<<<<<<< HEAD
             'Seq',
             'Ack',
             'Win',
@@ -108,17 +82,6 @@ def modelfeaturesTCP(scaled_df, modeltype):
             'dest_encoded',
             'SrcPort_encode',
             'DstPort_encode',
-=======
-            'Seq'
-            'Ack'
-            'Win'
-            'Len'
-            'MSS'
-            'source_encoded',
-            'dest_encoded',
-            'SrcPort_encode'
-            'DstPort_encode'
->>>>>>> 8b570d96d6cc553dba2dff04e1b9e7824daeb381
             'Time'
         ]
     return features
