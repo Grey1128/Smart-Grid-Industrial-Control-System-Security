@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 import os
+<<<<<<< HEAD
 import pickle
 
 
@@ -13,6 +14,11 @@ from sklearn.ensemble import IsolationForest
 from sklearn.preprocessing import MinMaxScaler, StandardScaler, LabelEncoder
 from sklearn import preprocessing
 from sklearn.model_selection import train_test_split
+=======
+
+from trainMODBUS import *
+from trainTCP import *
+>>>>>>> 8b570d96d6cc553dba2dff04e1b9e7824daeb381
 
 MB_Feat_Cols = ['Time', 'Source', 'Destination', 'Protocol', 'Length', 'Direction', 'TransID', 'UnitID', 'FuncCode']
 TCP_Feat_Cols = ['Time', 'Source', 'Destination', 'Protocol', 'Length', 'SrcPort', 'DstPort', 'Flags', 'Seq', 'Ack', 'Win', 'Len', 'MSS']
@@ -31,7 +37,11 @@ def loaddata():
     #Seperate dfs into MODBUS/TCP and TCP traffic
     MB_df = droparp_df[droparp_df['Protocol'] == 'Modbus/TCP']
     TCP_df = droparp_df[droparp_df['Protocol'] == 'TCP']
+<<<<<<< HEAD
     TCP_df['Ack'] = TCP_df['Ack'].fillna(0)
+=======
+    TCP_df = TCP_df['Ack'].fillna(0)
+>>>>>>> 8b570d96d6cc553dba2dff04e1b9e7824daeb381
 
     return MB_df, TCP_df, droparp_df
 
@@ -54,10 +64,17 @@ def processing(df):
 def modelbuild(df, features, modeltype):
     if modeltype == 'isolation forest':
         X = df[features]
+<<<<<<< HEAD
         model = IsolationForest(n_estimators=100, contamination=0.1, random_state=42, n_jobs=-1).fit(X)
         predictions = model.predict(X)
         normal_anomalies = (predictions == -1).astype(int)
         n_anomalies = np.sum(normal_anomalies)
+=======
+        model = IsolationForest(n_estimators=100, contamination=0.1).fit(X)
+        predictions = model.predict(X)
+        normal_anomalies = np.sum(predictions == -1)
+
+>>>>>>> 8b570d96d6cc553dba2dff04e1b9e7824daeb381
         print(f"Features used: {features}")
         # print(f"Flagged {predictions}/{len(X)} samples as potential anomalies in clean data") #this doesnt work right now 
 
@@ -89,7 +106,11 @@ def modelbuild(df, features, modeltype):
         model.add(Dense(50, activation='relu'))
         model.add(Dense(X_train.shape[2], activation='linear'))
         model.compile(optimizer=Adam(learning_rate=0.001), loss='mean_absolute_error')
+<<<<<<< HEAD
         model.summary()
+=======
+        model.summary
+>>>>>>> 8b570d96d6cc553dba2dff04e1b9e7824daeb381
         # [:, -1, :] = all sequences, last timestep, all features 
         model.fit(X_train, y_train, epochs=100, batch_size=64, validation_data=(X_test, y_test), verbose=1)
         predictions = model.predict(X_train)
