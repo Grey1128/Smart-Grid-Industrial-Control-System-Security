@@ -9,11 +9,9 @@ from trainTCP import *
 from keras.models import Model
 from keras.layers import Dense, LSTM, Input, RepeatVector, TimeDistributed
 from keras.optimizers import Adam
+from keras.callbacks import EarlyStopping
 from sklearn.preprocessing import MinMaxScaler, LabelEncoder
 from sklearn.model_selection import train_test_split
-
-MB_Feat_Cols = ['Time', 'Source', 'Destination', 'Protocol', 'Length', 'Direction', 'TransID', 'UnitID', 'FuncCode']
-TCP_Feat_Cols = ['Time', 'Source', 'Destination', 'Protocol', 'Length', 'SrcPort', 'DstPort', 'Flags', 'Seq', 'Ack', 'Win', 'Len', 'MSS']
 
 def loaddata():
     os.chdir('Raw-Data')
@@ -28,7 +26,12 @@ def loaddata():
 
     #Seperate dfs into MODBUS/TCP and TCP traffic
     MB_df = droparp_df[droparp_df['Protocol'] == 'Modbus/TCP']
+    tcp_cols = ['SrcPort', 'DstPort', 'Flags', 'Seq', 'Ack', 'Win', 'Len', 'MSS']
+    mb_cols = ['Direction', 'TransID', 'UnitID', 'FuncCode', 'FuncDesc']
+    MB_df = MB_df.drop(tcp_cols, axis=1)
     TCP_df = droparp_df[droparp_df['Protocol'] == 'TCP']
+    TCP_df = TCP_df.drop(mb_cols, axis=1)
+    TCP_df['MSS'].fillna(0, inplace=True)
     TCP_df['Ack'] = TCP_df['Ack'].fillna(0)
 
     return MB_df, TCP_df, droparp_df
@@ -36,20 +39,22 @@ def loaddata():
 def processing(df):
     df['source_encoded'] = LabelEncoder().fit_transform(df['Source'])
     df['dest_encoded'] = LabelEncoder().fit_transform(df['Destination'])
-    df['response_time'].fillna(df['response_time'].median(), inplace=True)
+    df['protocol_encoded'] = LabelEncoder().fit_transform(df['Protocol'])
+    #This adds additional data to the model to say whether or not there was a response. 
+    df['has_response_time'] = df['response_time'].notna().astype(int)
+    df['response_time'].fillna(0, inplace=True)
 
     # Difference between each message, beginning at 0 for the NAN value in first index
     df['time_dif'] = df['Time'].diff().fillna(0)
 
-    scaling_features = ['Time', 'response_time', 'time_dif']
+    scaling_features = df.select_dtypes(include=[np.number]).columns.tolist()
 
     scaler = MinMaxScaler()
-    for feat in scaling_features:
-        df[feat] = scaler.fit_transform(df[[feat]])
+    df[scaling_features] = scaler.fit_transform(df[scaling_features])
 
     return scaler, df
 
-def modelbuild(df, features, modeltype='lstm_autoencoder', sequence=30):
+def modelbuild(df, features, sequence):
     data = df[features].values
     X = []
     for i in range(len(data) - sequence):
@@ -61,21 +66,27 @@ def modelbuild(df, features, modeltype='lstm_autoencoder', sequence=30):
     n_features = X_train.shape[2]
 
     inputs = Input(shape=(timesteps, n_features))
-    encoded = LSTM(64, activation="relu")(inputs)
+    encoded = LSTM(128, activation='relu', return_sequences=True)(inputs)
+    encoded = LSTM(64, activation='relu')(encoded)
     repeated = RepeatVector(timesteps)(encoded)
-    decoded = LSTM(64, activation="relu", return_sequences=True)(repeated)
+    decoded = LSTM(64, activation='relu', return_sequences=True)(repeated)
+    decoded = LSTM(128, activation='relu', return_sequences=True)(decoded)
     outputs = TimeDistributed(Dense(n_features))(decoded)
 
     model = Model(inputs, outputs)
-    model.compile(optimizer=Adam(learning_rate=0.001), loss="mse")
+    model.compile(optimizer=Adam(learning_rate=0.001), loss='mse')
+
+    early_stop = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
+
     model.summary()
-    model.fit(X_train, X_train, epochs=100, batch_size=64, validation_split=0.2, verbose=1)
+    #wrapping early_stop in [] turns it into a list which callbacks requires 
+    model.fit(X_train, X_train, epochs=100, batch_size=64, validation_split=0.2, verbose=1, callbacks=[early_stop])
 
     #Reconstruction error on training data
     X_train_pred = model.predict(X_train)
     train_mse = np.mean(np.square(X_train_pred - X_train), axis=(1,2))
 
-    threshold = np.percentile(train_mse, 95)
+    threshold = np.percentile(train_mse, 99)
     print(f"Reconstruction error threshold set to {threshold:.6f}")
 
     return model, threshold
@@ -99,10 +110,9 @@ def modbus(MB_df):
     print(f"Total pairs found: {len(time_differences)}")
     resp_df['direction_binary'] = (resp_df['Direction'] == 'Query').astype(int)
     scaler, scaled_df = processing(resp_df)
-    isof_features = modelfeaturesMB(scaled_df, 'isolation forest') 
-    lstm_features = modelfeaturesMB(scaled_df, 'lstm')
-    lstm_model = modelbuild(scaled_df, MB_Feat_Cols, 'lstm')
-    modelsave(lstm_model, 'lstm')
+    MB_Feat_Cols = ['Time', 'source_encoded', 'dest_encoded', 'protocol_encoded', 'Length', 'direction_binary', 'TransID', 'UnitID', 'FuncCode', 'response_time', 'time_dif', 'has_response_time']
+    lstm_model, threshold = modelbuild(scaled_df, MB_Feat_Cols, 35)
+    modelsave(lstm_model, 'LSTEM_Autoencoder')
 
 def tcp(TCP_df):
     uniquesrc, uniquedest, uniquelist = iplist(TCP_df)
@@ -111,10 +121,9 @@ def tcp(TCP_df):
     resp_df['SrcPort_encode'] = LabelEncoder().fit_transform(resp_df['SrcPort'])
     resp_df['DstPort_encode'] = LabelEncoder().fit_transform(resp_df['DstPort'])
     scaler, scaled_df = processing(resp_df)
-    isof_features = modelfeaturesTCP(scaled_df, 'isolation forest')
-    lstm_features = modelfeaturesTCP(scaled_df, 'lstm')
-    lstm_model = modelbuild(scaled_df, TCP_Feat_Cols, 'lstm')
-    modelsave(lstm_model, 'lstm')
+    TCP_Feat_Cols = ['Time', 'source_encoded', 'dest_encoded', 'protocol_encoded', 'Length', 'SrcPort_encode', 'DstPort_encode', 'Flag_encode', 'Seq', 'Ack', 'Win', 'Len', 'MSS', 'response_time', 'time_dif', 'has_response_time']
+    lstm_model, threshold = modelbuild(scaled_df, TCP_Feat_Cols, 35)
+    modelsave(lstm_model, 'LSTEM_Autoencoder')
 
 def iplist(df):
     uniquesrc = df['Source'].unique()
@@ -127,7 +136,7 @@ def iplist(df):
 def main():
     MB_df, TCP_df, droparp_df = loaddata()
     uniquesrc, uniquedest, uniquelist = iplist(droparp_df)
-    modbus(MB_df)
+    #modbus(MB_df)
     tcp(TCP_df)
 
 main()

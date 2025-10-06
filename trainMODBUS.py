@@ -1,8 +1,5 @@
-print('Importing libraries....')
 import numpy as np
 import pandas as pd
-
-print('Libraries imported.....')
 
 FEATURE_COLUMNS = ['Time', 'Source', 'Destination', 'Protocol', 'Length', 'Direction', 'TransID', 'UnitID', 'FuncCode']
 
