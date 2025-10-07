@@ -33,6 +33,7 @@ def loaddata():
     TCP_df = TCP_df.drop(mb_cols, axis=1)
     TCP_df['MSS'].fillna(0, inplace=True)
     TCP_df['Ack'] = TCP_df['Ack'].fillna(0)
+    TCP_df = TCP_df.dropna()
 
     return MB_df, TCP_df, droparp_df
 
@@ -79,13 +80,14 @@ def modelbuild(df, features, sequence):
     early_stop = EarlyStopping(monitor='val_loss', patience=10, restore_best_weights=True)
 
     model.summary()
-    #wrapping early_stop in [] turns it into a list which callbacks requires 
+    #wrapping early_stop in [] turns it into a list which callbacks requires - note to remember 
     model.fit(X_train, X_train, epochs=100, batch_size=64, validation_split=0.2, verbose=1, callbacks=[early_stop])
 
     #Reconstruction error on training data
     X_train_pred = model.predict(X_train)
     train_mse = np.mean(np.square(X_train_pred - X_train), axis=(1,2))
 
+    #threshold is made to be 99% to reduce chance of false positives
     threshold = np.percentile(train_mse, 99)
     print(f"Reconstruction error threshold set to {threshold:.6f}")
 
@@ -117,6 +119,9 @@ def modbus(MB_df):
 def tcp(TCP_df):
     uniquesrc, uniquedest, uniquelist = iplist(TCP_df)
     time_differences, resp_df = timeprocessTCP(TCP_df)
+    mean_time_diff = np.mean([t for t in time_differences if t > 0])
+    print(f"Mean Response Time: {mean_time_diff:.6f} seconds")
+    print(f"TOtal pairs found: {len(time_differences)}")
     resp_df['Flag_encode'] = LabelEncoder().fit_transform(resp_df['Flags'])
     resp_df['SrcPort_encode'] = LabelEncoder().fit_transform(resp_df['SrcPort'])
     resp_df['DstPort_encode'] = LabelEncoder().fit_transform(resp_df['DstPort'])
