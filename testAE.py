@@ -70,77 +70,21 @@ def processing(df):
 
     return scaler, df
 
-def timeprocess(df):
-    df['Time'] = pd.to_numeric(df['Time'], errors='coerce')
-    df = df.sort_values('Time').reset_index(drop=True)
-
-    # Initialise values
-    time_differences = []
-    processed_indices = set()
-    df['response_time'] = np.nan
-    
-    # Makes sure we're not going over the same rows with adjacency checks
-    for i in range(len(df)):
-        if i in processed_indices:
-            continue
-
-        current_row = df.iloc[i]
-        current_trans_id = current_row['trans_id']
-        current_direction = current_row['direction']
-
-        # Checks 3 spots lower and 3 spots higher which is from what I can see, the maximum length apart a response can be 
-        search_range = range(max(0, i-4), min(len(df), i + 4))
-
-        # Same check as before,, insuring we're not going over the same rows/not comparing itself with itself
-        for j in search_range:
-            if j == i or j in processed_indices:
-                continue
-
-            other_row = df.iloc[j]
-            
-            # Found matching transaction with opposite direction
-            if (other_row['trans_id'] == current_trans_id and 
-                other_row['direction'] != current_direction):
-                
-                # Determine query and response times
-                if current_direction == 'Query':
-                    query_indx, response_indx = i, j
-                    query_time = current_row['Time']
-                    response_time = other_row['Time']
-                else:
-                    query_indx, response_indx = j, i
-                    query_time = other_row['Time']
-                    response_time = current_row['Time']
-                
-                # Calculate time difference (response - query)
-                time_diff = response_time - query_time
-                time_differences.append(time_diff)
-                
-                # Adds the respective response time to each index of the response_time column
-                df.loc[query_indx, 'response_time'] = time_diff
-                df.loc[response_indx, 'response_time'] = time_diff
-
-                # Mark both rows as processed
-                processed_indices.add(i)
-                processed_indices.add(j)
-                break
-    
-    return time_differences, df
-
 def processing(df):
     df['source_encoded'] = LabelEncoder().fit_transform(df['Source'])
     df['dest_encoded'] = LabelEncoder().fit_transform(df['Destination'])
-    df['direction_binary'] = (df['direction'] == 'Query').astype(int)
-    df['response_time'].fillna(df['response_time'].median(), inplace=True)
+    df['protocol_encoded'] = LabelEncoder().fit_transform(df['Protocol'])
+    #This adds additional data to the model to say whether or not there was a response. 
+    df['has_response_time'] = df['response_time'].notna().astype(int)
+    df['response_time'].fillna(0, inplace=True)
 
-    #Difference between each message, beginning at 0 for the NAN value in first index
+    # Difference between each message, beginning at 0 for the NAN value in first index
     df['time_dif'] = df['Time'].diff().fillna(0)
 
-    scaling_features = ['Time', 'response_time', 'time_dif']
+    scaling_features = df.select_dtypes(include=[np.number]).columns.tolist()
 
     scaler = MinMaxScaler()
-    for feat in scaling_features:
-        df[feat] = scaler.fit_transform(df[[feat]])
+    df[scaling_features] = scaler.fit_transform(df[scaling_features])
 
     return scaler, df
 
