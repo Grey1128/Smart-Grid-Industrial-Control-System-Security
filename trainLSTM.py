@@ -17,6 +17,7 @@ def loaddata():
     os.chdir('Raw-Data')
     df = pd.read_csv('MB_n_TCP.csv')
     print(df.columns)
+    os.chdir('..')
     df = df.sort_values('Time').reset_index(drop=True)
 
     #Drops unnecesary columns and all ARP rows 
@@ -89,6 +90,7 @@ def modelbuild(df, features, sequence):
 
     #threshold is made to be 99% to reduce chance of false positives
     threshold = np.percentile(train_mse, 99)
+    model.threshold = threshold
     print(f"Reconstruction error threshold set to {threshold:.6f}")
 
     return model, threshold
@@ -96,7 +98,7 @@ def modelbuild(df, features, sequence):
 def modelsave(model, string):
     date = dt.datetime.now()
     datestring = date.strftime("%Y-%m-%d %H-%M-%S")
-    filename = f"{string}_Modbus_{datestring}.pk1"
+    filename = f"LSTM_Autoencoder_{string}_{datestring}.pk1"
 
     if not os.path.isdir("models"):
         os.mkdir("models")
@@ -114,7 +116,7 @@ def modbus(MB_df):
     scaler, scaled_df = processing(resp_df)
     MB_Feat_Cols = ['Time', 'source_encoded', 'dest_encoded', 'protocol_encoded', 'Length', 'direction_binary', 'TransID', 'UnitID', 'FuncCode', 'response_time', 'time_dif', 'has_response_time']
     lstm_model, threshold = modelbuild(scaled_df, MB_Feat_Cols, 35)
-    modelsave(lstm_model, 'LSTEM_Autoencoder')
+    modelsave(lstm_model, 'MODBUS')
 
 def tcp(TCP_df):
     uniquesrc, uniquedest, uniquelist = iplist(TCP_df)
@@ -128,7 +130,7 @@ def tcp(TCP_df):
     scaler, scaled_df = processing(resp_df)
     TCP_Feat_Cols = ['Time', 'source_encoded', 'dest_encoded', 'protocol_encoded', 'Length', 'SrcPort_encode', 'DstPort_encode', 'Flag_encode', 'Seq', 'Ack', 'Win', 'Len', 'MSS', 'response_time', 'time_dif', 'has_response_time']
     lstm_model, threshold = modelbuild(scaled_df, TCP_Feat_Cols, 35)
-    modelsave(lstm_model, 'LSTEM_Autoencoder')
+    modelsave(lstm_model, 'TCP')
 
 def iplist(df):
     uniquesrc = df['Source'].unique()
@@ -141,7 +143,7 @@ def iplist(df):
 def main():
     MB_df, TCP_df, droparp_df = loaddata()
     uniquesrc, uniquedest, uniquelist = iplist(droparp_df)
-    #modbus(MB_df)
+    modbus(MB_df)
     tcp(TCP_df)
 
 main()
