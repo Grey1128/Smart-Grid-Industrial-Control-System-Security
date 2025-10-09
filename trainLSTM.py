@@ -144,6 +144,6 @@ def main():
     MB_df, TCP_df, droparp_df = loaddata()
     uniquesrc, uniquedest, uniquelist = iplist(droparp_df)
     modbus(MB_df)
-    tcp(TCP_df)
+    #tcp(TCP_df)
 
 main()

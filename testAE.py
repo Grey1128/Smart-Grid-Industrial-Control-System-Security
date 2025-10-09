@@ -7,6 +7,7 @@ import numpy as np
 
 from trainMODBUS import *
 from trainTCP import *
+from threshold import *
 from sklearn.preprocessing import MinMaxScaler, LabelEncoder
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score, accuracy_score
@@ -98,10 +99,10 @@ def modbus(MB_df, mb_model):
     scaler, scaled_df = processing(resp_df)
     MB_Feat_Cols = ['Time', 'source_encoded', 'dest_encoded', 'protocol_encoded', 'Length', 'direction_binary', 'TransID', 'UnitID', 'FuncCode', 'response_time', 'time_dif', 'has_response_time']
     X_sd = scaled_df[MB_Feat_Cols].values
-    anomaly_scores, anomalies = detect(X_sd, mb_model, mb_model.threshold)
+    anomaly_scores, anomalies = detect(X_sd, mb_model, 'modbus')
     resp_df['anomaly_score'], resp_df['is_anomaly'] = anomaly_scores, anomalies
     print(f'TCP anomalies detected: {np.sum(anomalies)} out of {len(resp_df)} entries')
-    print(f'Threshold is: {mb_model.threshold:.2f}%')
+    print(f'Threshold is: {MODBUS_THRESHOLD}%')
     anomaly_indexes = np.where(anomalies)[0] #0 used to only use the first value from the row/column tuple 
     if len(anomaly_indexes) > 0:
         print(f"Anomaly row indexes: {anomaly_indexes.tolist()}")
@@ -117,19 +118,22 @@ def tcp(TCP_df, tcp_model):
     scaler, scaled_df = processing(resp_df)
     TCP_Feat_Cols = ['Time', 'source_encoded', 'dest_encoded', 'protocol_encoded', 'Length', 'SrcPort_encode', 'DstPort_encode', 'Flag_encode', 'Seq', 'Ack', 'Win', 'Len', 'MSS', 'response_time', 'time_dif', 'has_response_time']
     X_sd = scaled_df[TCP_Feat_Cols].values
-    anomaly_scores, anomalies = detect(X_sd, tcp_model, tcp_model.threshold)
+    anomaly_scores, anomalies = detect(X_sd, tcp_model, 'tcp')
     resp_df['anomaly_score'], resp_df['is_anomaly'] = anomaly_scores, anomalies
     print(f'TCP anomalies detected: {np.sum(anomalies)} out of {len(resp_df)} entries')
-    print(f'Threshold is: {tcp_model.threshold:.2f}%')
+    print(f'Threshold is: {TCP_THRESHOLD}%')
     anomaly_indexes = np.where(anomalies)[0]
     if len(anomaly_indexes) > 0:
         print(f"Anomaly row indexes: {anomaly_indexes.tolist()}")
 
-def detect(scaled_data, model, threshold):
+def detect(scaled_data, model, string):
     reconstruct = model.predict(scaled_data)
     anom_scores = np.array([mean_squared_error(scaled_data[i], reconstruct[i]) for i in range(len(scaled_data))])
-    anomalies = anom_scores > threshold
-    return anom_scores, anomalies, threshold
+    if string == 'modbus':
+        anomalies = anom_scores > MODBUS_THRESHOLD
+    elif string == 'tcp':
+        anomalies = anom_scores > TCP_THRESHOLD
+    return anom_scores, anomalies
 
 def main():
     MB_df, TCP_df, droparp_df = loaddata()
