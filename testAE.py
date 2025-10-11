@@ -17,7 +17,7 @@ def loadmodel():
     os.chdir('models')
 
     tcp_file = glob.glob(f'LSTM_Autoencoder_TCP_*')
-    mb_file = glob.glob(f'LSTM_Autoencoder_TCP_*')
+    mb_file = glob.glob(f'LSTM_Autoencoder_MODBUS_*')
     tcp_file = max(tcp_file)
     mb_file = max(mb_file)
 
@@ -71,23 +71,13 @@ def processing(df):
 
     return scaler, df
 
-def processing(df):
-    df['source_encoded'] = LabelEncoder().fit_transform(df['Source'])
-    df['dest_encoded'] = LabelEncoder().fit_transform(df['Destination'])
-    df['protocol_encoded'] = LabelEncoder().fit_transform(df['Protocol'])
-    #This adds additional data to the model to say whether or not there was a response. 
-    df['has_response_time'] = df['response_time'].notna().astype(int)
-    df['response_time'].fillna(0, inplace=True)
-
-    # Difference between each message, beginning at 0 for the NAN value in first index
-    df['time_dif'] = df['Time'].diff().fillna(0)
-
-    scaling_features = df.select_dtypes(include=[np.number]).columns.tolist()
-
-    scaler = MinMaxScaler()
-    df[scaling_features] = scaler.fit_transform(df[scaling_features])
-
-    return scaler, df
+def sequencing(X_data):
+    seq_length = 35
+    X = []
+    for i in range(len(X_data) - seq_length + 1):
+        X.append(X_data[i:i + seq_length])
+    X = np.array(X)
+    return X
 
 #modbus() and tcp() can later be added to trainMODBUS and trainTCP to reuse them across trainLSTM and testAE
 def modbus(MB_df, mb_model):
@@ -95,13 +85,18 @@ def modbus(MB_df, mb_model):
     mean_time_diff = np.mean([t for t in time_differences if t > 0])
     print(f"Mean Response Time: {mean_time_diff:.6f} seconds")
     print(f"Total pairs found: {len(time_differences)}")
+    
     resp_df['direction_binary'] = (resp_df['Direction'] == 'Query').astype(int)
     scaler, scaled_df = processing(resp_df)
+  
     MB_Feat_Cols = ['Time', 'source_encoded', 'dest_encoded', 'protocol_encoded', 'Length', 'direction_binary', 'TransID', 'UnitID', 'FuncCode', 'response_time', 'time_dif', 'has_response_time']
-    X_sd = scaled_df[MB_Feat_Cols].values
+    X_data = scaled_df[MB_Feat_Cols].values
+    X_sd = sequencing(X_data)
     anomaly_scores, anomalies = detect(X_sd, mb_model, 'modbus')
-    resp_df['anomaly_score'], resp_df['is_anomaly'] = anomaly_scores, anomalies
-    print(f'TCP anomalies detected: {np.sum(anomalies)} out of {len(resp_df)} entries')
+   
+    resp_df_sequenced = resp_df.iloc[34:].reset_index(drop=True)
+    resp_df_sequenced['anomaly_score'], resp_df_sequenced['is_anomaly'] = anomaly_scores, anomalies
+    print(f'MODBUS anomalies detected: {np.sum(anomalies)} out of {len(resp_df_sequenced)} entries')
     print(f'Threshold is: {MODBUS_THRESHOLD}%')
     anomaly_indexes = np.where(anomalies)[0] #0 used to only use the first value from the row/column tuple 
     if len(anomaly_indexes) > 0:
@@ -112,15 +107,21 @@ def tcp(TCP_df, tcp_model):
     mean_time_diff = np.mean([t for t in time_differences if t > 0])
     print(f"Mean Response Time: {mean_time_diff:.6f} seconds")
     print(f"TOtal pairs found: {len(time_differences)}")
+
     resp_df['Flag_encode'] = LabelEncoder().fit_transform(resp_df['Flags'])
     resp_df['SrcPort_encode'] = LabelEncoder().fit_transform(resp_df['SrcPort'])
     resp_df['DstPort_encode'] = LabelEncoder().fit_transform(resp_df['DstPort'])
     scaler, scaled_df = processing(resp_df)
+
     TCP_Feat_Cols = ['Time', 'source_encoded', 'dest_encoded', 'protocol_encoded', 'Length', 'SrcPort_encode', 'DstPort_encode', 'Flag_encode', 'Seq', 'Ack', 'Win', 'Len', 'MSS', 'response_time', 'time_dif', 'has_response_time']
-    X_sd = scaled_df[TCP_Feat_Cols].values
+    X_data = scaled_df[TCP_Feat_Cols].values
+    X_sd = sequencing(X_data)
     anomaly_scores, anomalies = detect(X_sd, tcp_model, 'tcp')
-    resp_df['anomaly_score'], resp_df['is_anomaly'] = anomaly_scores, anomalies
-    print(f'TCP anomalies detected: {np.sum(anomalies)} out of {len(resp_df)} entries')
+
+    #34 as sequencing removes 34 indexes from the data (64,333 versus 64,299)
+    resp_df_sequenced = resp_df.iloc[34:].reset_index(drop=True)
+    resp_df_sequenced['anomaly_score'], resp_df_sequenced['is_anomaly'] = anomaly_scores, anomalies
+    print(f'TCP anomalies detected: {np.sum(anomalies)} out of {len(resp_df_sequenced)} entries')
     print(f'Threshold is: {TCP_THRESHOLD}%')
     anomaly_indexes = np.where(anomalies)[0]
     if len(anomaly_indexes) > 0:
