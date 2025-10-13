@@ -117,6 +117,7 @@ def modbus(MB_df):
     MB_Feat_Cols = ['Time', 'source_encoded', 'dest_encoded', 'protocol_encoded', 'Length', 'direction_binary', 'TransID', 'UnitID', 'FuncCode', 'response_time', 'time_dif', 'has_response_time']
     lstm_model, threshold = modelbuild(scaled_df, MB_Feat_Cols, 35)
     modelsave(lstm_model, 'MODBUS')
+    return threshold
 
 def tcp(TCP_df):
     uniquesrc, uniquedest, uniquelist = iplist(TCP_df)
@@ -131,6 +132,7 @@ def tcp(TCP_df):
     TCP_Feat_Cols = ['Time', 'source_encoded', 'dest_encoded', 'protocol_encoded', 'Length', 'SrcPort_encode', 'DstPort_encode', 'Flag_encode', 'Seq', 'Ack', 'Win', 'Len', 'MSS', 'response_time', 'time_dif', 'has_response_time']
     lstm_model, threshold = modelbuild(scaled_df, TCP_Feat_Cols, 35)
     modelsave(lstm_model, 'TCP')
+    return threshold
 
 def iplist(df):
     uniquesrc = df['Source'].unique()
@@ -140,10 +142,18 @@ def iplist(df):
     print(f"Allowed sources are: {uniquelist}")
     return uniquesrc, uniquedest, uniquelist
 
+def threshsave(tcp_threshold, mb_threshold):
+    if os.path.exists('threshold.py'):
+        os.remove('threshold.py')
+    with open('threshold.py', 'w') as f:
+        f.write(f'TCP_THRESHOLD = {tcp_threshold}\nMODBUS_THRESHOLD = {mb_threshold}')
+    print('Threshold saved')
+
 def main():
     MB_df, TCP_df, droparp_df = loaddata()
     uniquesrc, uniquedest, uniquelist = iplist(droparp_df)
-    modbus(MB_df)
-    #tcp(TCP_df)
+    mb_threshold = modbus(MB_df)
+    tcp_threshold = tcp(TCP_df)
+    threshsave(tcp_threshold, mb_threshold)
 
 main()
