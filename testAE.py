@@ -43,7 +43,7 @@ def loadmodel():
 
 def loaddata():
     os.chdir('Raw-Data')
-    df = pd.read_csv('Send_Fake_Command.csv')
+    df = pd.read_csv('MB_n_TCP.csv')
     print(df.columns)
     os.chdir('..')
     df = df.sort_values('Time').reset_index(drop=True)
@@ -68,8 +68,8 @@ def loaddata():
     return MB_df, TCP_df, droparp_df
 
 def processing(df, scaler):
-    df['source_encoded'] = LabelEncoder().fit_transform(df['Source'])
-    df['dest_encoded'] = LabelEncoder().fit_transform(df['Destination'])
+    # df['source_encoded'] = LabelEncoder().fit_transform(df['Source'])
+    # df['dest_encoded'] = LabelEncoder().fit_transform(df['Destination'])
     df['protocol_encoded'] = LabelEncoder().fit_transform(df['Protocol'])
     #This adds additional data to the model to say whether or not there was a response. 
     df['has_response_time'] = df['response_time'].notna().astype(int)
@@ -82,7 +82,7 @@ def processing(df, scaler):
 
     df[scaling_features] = scaler.transform(df[scaling_features])
 
-    return scaler, df
+    return df
 
 def sequencing(X_data):
     seq_length = 35
@@ -102,7 +102,7 @@ def modbus(MB_df, mb_model, scaler):
     resp_df['direction_binary'] = (resp_df['Direction'] == 'Query').astype(int)
     scaled_df = processing(resp_df, scaler)
   
-    MB_Feat_Cols = ['Time', 'source_encoded', 'dest_encoded', 'protocol_encoded', 'Length', 'direction_binary', 'TransID', 'UnitID', 'FuncCode', 'response_time', 'time_dif', 'has_response_time']
+    MB_Feat_Cols = ['protocol_encoded', 'Length', 'direction_binary', 'TransID', 'UnitID', 'FuncCode', 'response_time', 'time_dif', 'has_response_time']
     X_data = scaled_df[MB_Feat_Cols].values
     X_sd = sequencing(X_data)
     anomaly_scores, anomalies = detect(X_sd, mb_model, 'modbus')
@@ -128,7 +128,7 @@ def tcp(TCP_df, tcp_model, scaler, encoders):
     resp_df['DstPort_encode'] = encoders['dstport'].fit_transform(resp_df['DstPort'])
     scaled_df = processing(resp_df, scaler)
 
-    TCP_Feat_Cols = ['Time', 'source_encoded', 'dest_encoded', 'protocol_encoded', 'Length', 'SrcPort_encode', 'DstPort_encode', 'Flag_encode', 'Seq', 'Ack', 'Win', 'Len', 'MSS', 'response_time', 'time_dif', 'has_response_time']
+    TCP_Feat_Cols = ['protocol_encoded', 'Length', 'SrcPort_encode', 'DstPort_encode', 'Flag_encode', 'Seq', 'Ack', 'Win', 'Len', 'MSS', 'response_time', 'time_dif', 'has_response_time']
     X_data = scaled_df[TCP_Feat_Cols].values
     X_sd = sequencing(X_data)
     anomaly_scores, anomalies = detect(X_sd, tcp_model, 'tcp')
@@ -160,13 +160,13 @@ def plotanom(mb_anom, tcp_anom):
     mb_x = mb_anom['Time'].values
     tcp_x = tcp_anom['Time'].values
 
-    plt.subplot(2,1,1)
+    plt.subplot(2,1,1, figsize=(12,6))
     plt.plot(mb_x, mb_values, color='blue')
     plt.title('MODBUS Anomaly Scores')
     plt.ylabel('Anomaly Scores')
     plt.xlabel('Time')
 
-    plt.subplot(2,1,2)
+    plt.subplot(2,1,2, figsize=(12,6))
     plt.plot(tcp_x, tcp_values, color='green')
     plt.title('TCP/MODBUS Anomaly Scores')
     plt.ylabel('Anomaly Scores')

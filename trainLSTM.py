@@ -82,7 +82,7 @@ def modelbuild(df, features, sequence):
 
     model.summary()
     #wrapping early_stop in [] turns it into a list which callbacks requires - note to remember 
-    model.fit(X_train, X_train, epochs=50, batch_size=64, validation_split=0.2, verbose=1, callbacks=[early_stop])
+    model.fit(X_train, X_train, epochs=75, batch_size=64, validation_split=0.2, verbose=1, callbacks=[early_stop])
 
     #Reconstruction error on training data
     X_train_pred = model.predict(X_train)
@@ -106,11 +106,11 @@ def modelsave(model, string, scaler, encoders):
     os.chdir("models")
     pickle.dump(model, open(filename, 'wb'))
     
-    scaler_filename = f"Scaler_{string}_{datestring}"
+    scaler_filename = f"Scaler_{string}_{datestring}.pk1"
     pickle.dump(scaler, open(scaler_filename, 'wb'))
 
     if encoders != 'None':
-        encoders_filename = f"Encoders_{string}_{datestring}"
+        encoders_filename = f"Encoders_{string}_{datestring}.pk1"
         pickle.dump(encoders, open(encoders_filename, 'wb'))
 
     os.chdir("..")
@@ -126,7 +126,7 @@ def modbus(MB_df):
     scaler, scaled_df = processing(resp_df)
     createlogs(scaled_df, 'mb')
     #MB_Feat_Cols = ['Time', 'source_encoded', 'dest_encoded', 'protocol_encoded', 'Length', 'direction_binary', 'TransID', 'UnitID', 'FuncCode', 'response_time', 'time_dif', 'has_response_time']
-    MB_Feat_Cols = ['protocol_encoded', 'Length', 'direction_binary', 'TransID', 'UnitID', 'FuncCode', 'response_time', 'time_dif', 'has_response_time']
+    MB_Feat_Cols = ['Length', 'direction_binary', 'TransID', 'UnitID', 'FuncCode', 'response_time', 'time_dif', 'has_response_time']
     lstm_model, threshold = modelbuild(scaled_df, MB_Feat_Cols, 35)
     modelsave(lstm_model, 'MODBUS', scaler, 'None')
     return threshold
@@ -146,6 +146,8 @@ def tcp(TCP_df):
     resp_df['SrcPort_encode'] = srcportencoder.fit_transform(resp_df['SrcPort'])
     resp_df['DstPort_encode'] = dstportencoder.fit_transform(resp_df['DstPort'])
 
+    resp_df.to_csv('fuckmylife1.csv', index=False)
+    
     encoders = {
         'flag': flagencoder,
         'srcport': srcportencoder,
@@ -155,7 +157,7 @@ def tcp(TCP_df):
     scaler, scaled_df = processing(resp_df)
     createlogs(scaled_df, 'tcp')
     #TCP_Feat_Cols = ['Time', 'source_encoded', 'dest_encoded', 'protocol_encoded', 'Length', 'SrcPort_encode', 'DstPort_encode', 'Flag_encode', 'Seq', 'Ack', 'Win', 'Len', 'MSS', 'response_time', 'time_dif', 'has_response_time']
-    TCP_Feat_Cols = ['protocol_encoded', 'Length', 'SrcPort_encode', 'DstPort_encode', 'Flag_encode', 'Seq', 'Ack', 'Win', 'Len', 'MSS', 'response_time', 'time_dif', 'has_response_time']
+    TCP_Feat_Cols = ['Length', 'SrcPort_encode', 'DstPort_encode', 'Flag_encode', 'Seq', 'Ack', 'Win', 'Len', 'MSS', 'response_time', 'time_dif', 'has_response_time']
     lstm_model, threshold = modelbuild(scaled_df, TCP_Feat_Cols, 35)
     modelsave(lstm_model, 'TCP', scaler, encoders)
     return threshold
