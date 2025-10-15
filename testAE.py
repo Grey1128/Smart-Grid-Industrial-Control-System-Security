@@ -102,9 +102,12 @@ def modbus(MB_df, mb_model, scaler):
     resp_df['direction_binary'] = (resp_df['Direction'] == 'Query').astype(int)
     scaled_df = processing(resp_df, scaler)
   
-    MB_Feat_Cols = ['protocol_encoded', 'Length', 'direction_binary', 'TransID', 'UnitID', 'FuncCode', 'response_time', 'time_dif', 'has_response_time']
+    MB_Feat_Cols = ['Length', 'direction_binary', 'TransID', 'UnitID', 'FuncCode', 'response_time', 'time_dif', 'has_response_time']
     X_data = scaled_df[MB_Feat_Cols].values
     X_sd = sequencing(X_data)
+
+    mb_metrics = evaluate(X_sd, mb_model, 'MODBUS')
+
     anomaly_scores, anomalies = detect(X_sd, mb_model, 'modbus')
     
     scaled_df_sequenced = scaled_df.iloc[34:].reset_index(drop=True)
@@ -128,9 +131,12 @@ def tcp(TCP_df, tcp_model, scaler, encoders):
     resp_df['DstPort_encode'] = encoders['dstport'].fit_transform(resp_df['DstPort'])
     scaled_df = processing(resp_df, scaler)
 
-    TCP_Feat_Cols = ['protocol_encoded', 'Length', 'SrcPort_encode', 'DstPort_encode', 'Flag_encode', 'Seq', 'Ack', 'Win', 'Len', 'MSS', 'response_time', 'time_dif', 'has_response_time']
+    TCP_Feat_Cols = ['Length', 'SrcPort_encode', 'DstPort_encode', 'Flag_encode', 'Seq', 'Ack', 'Win', 'Len', 'MSS', 'response_time', 'time_dif', 'has_response_time']
     X_data = scaled_df[TCP_Feat_Cols].values
     X_sd = sequencing(X_data)
+
+    tcp_metrics = evaluate(X_sd, tcp_model, 'TCP')
+
     anomaly_scores, anomalies = detect(X_sd, tcp_model, 'tcp')
 
     #34 as sequencing removes 34 indexes from the data (64,333 versus 64,299)
@@ -144,6 +150,21 @@ def tcp(TCP_df, tcp_model, scaler, encoders):
         print(f"Anomaly row indexes: {anomaly_indexes.tolist()}")
 
     return scaled_df_sequenced
+
+def evaluate(data, model, string):
+    reconstruct = model.predict(data, verbose=0)
+    #flatten
+    data = data.reshape(-1)
+    reconstruct = reconstruct.reshape(-1)
+
+    mae = mean_absolute_error(data, reconstruct)
+    mse = mean_squared_error(data, reconstruct)
+    r2 = r2_score(data, reconstruct)
+    rmse = np.sqrt(mse)
+
+    print(f"{string} Evaluation")
+    print(f'Mean Aboslute Error = {mae:.4f}\nMean Squared Error: {mse:.4f}\nR2 Score: {r2*100:.2f}% \nRoot Mean Squared Error: {rmse:.4f}')
+
 
 def detect(scaled_data, model, string):
     reconstruct = model.predict(scaled_data)
@@ -160,13 +181,13 @@ def plotanom(mb_anom, tcp_anom):
     mb_x = mb_anom['Time'].values
     tcp_x = tcp_anom['Time'].values
 
-    plt.subplot(2,1,1, figsize=(12,6))
+    plt.subplot(2,1,1)
     plt.plot(mb_x, mb_values, color='blue')
     plt.title('MODBUS Anomaly Scores')
     plt.ylabel('Anomaly Scores')
     plt.xlabel('Time')
 
-    plt.subplot(2,1,2, figsize=(12,6))
+    plt.subplot(2,1,2)
     plt.plot(tcp_x, tcp_values, color='green')
     plt.title('TCP/MODBUS Anomaly Scores')
     plt.ylabel('Anomaly Scores')
