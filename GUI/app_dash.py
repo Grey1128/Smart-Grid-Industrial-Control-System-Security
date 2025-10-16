@@ -10,46 +10,36 @@ import random
 from collections import deque
 from tcp_data_reader import TCPDataReader
 
-# Initialize Dash app with dark theme
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.DARKLY])
 app.config.suppress_callback_exceptions = True
 
-# Initialize the data reader with your CSV file
 data_reader = TCPDataReader('tcp_scaled_15102025.csv')
 
-# Data stores will now be populated from the CSV 
 alerts_data = deque(maxlen=20)
 protocol_events = deque(maxlen=500)
-response_time_data = deque(maxlen=60) # For the anomaly chart
-# separate deque for the simulated correlation data 
+response_time_data = deque(maxlen=60)
 sensor_logs = deque(maxlen=200)
 
-
-# The original simulation function for sensor/SCADA events 
 def generate_sensor_logs(threat_level):
-    """Generate correlated sensor, SCADA, and network logs for visualization."""
     current_time = datetime.now()
     events = []
-    num_event_sets = 1 + threat_level # More events for higher threat levels
+    num_event_sets = 1 + threat_level
     
     for i in range(num_event_sets):
         correlation_id = f"CID_{random.randint(1000, 9999)}"
         base_time = current_time - timedelta(seconds=random.randint(i * 10, (i+1) * 10))
         is_anomaly = random.random() < (0.1 + threat_level * 0.25)
 
-        # 1. Network Event
         events.append({
             'timestamp': base_time, 'source': 'network',
             'event': {'status': 'suspicious' if is_anomaly else 'ok'},
             'correlation_id': correlation_id
         })
-        # 2. SCADA Event 
         events.append({
             'timestamp': base_time + timedelta(seconds=random.uniform(1, 2)), 'source': 'scada',
             'event': {'status': 'critical' if is_anomaly else 'normal'},
             'correlation_id': correlation_id
         })
-        # 3. Sensor Event 
         events.append({
             'timestamp': base_time + timedelta(seconds=random.uniform(2, 3)), 'source': 'sensor',
             'event': {'status': 'critical' if is_anomaly else 'normal'},
@@ -57,10 +47,7 @@ def generate_sensor_logs(threat_level):
         })
     return events
 
-
-# 
 def create_alert_from_row(row):
-    """Creates an alert dictionary from a dataframe row if it's an anomaly."""
     if row['is_anomaly'] == 1:
         return {
             'id': row['Time'],
@@ -72,9 +59,7 @@ def create_alert_from_row(row):
         }
     return None
 
-# EXISTING HELPER FUNCTION (Modified for new alert structure) 
 def create_alert_card(alert):
-    """Create alert card """
     color_map = {'critical': 'danger', 'warning': 'warning', 'info': 'info'}
     icon_map = {'critical': '🔴', 'warning': '🟡', 'info': '🔵'}
     
@@ -88,9 +73,7 @@ def create_alert_card(alert):
         ])
     ], color=color_map[alert['type']], className="mb-2")
 
-
 app.layout = dbc.Container([
-    # Header
     dbc.Row([
         dbc.Col([
             html.H1("🛡️ Smart Grid Security Monitor", className="text-center mb-4"),
@@ -98,7 +81,6 @@ app.layout = dbc.Container([
         ])
     ]),
     
-    # Control Panel
     dbc.Row([
         dbc.Col([
             dbc.Card([
@@ -120,7 +102,6 @@ app.layout = dbc.Container([
         ], width=12)
     ]),
     
-    # Main Dashboard
     dbc.Row([
         dbc.Col(dbc.Card([
             dbc.CardHeader(html.H5("🚨 Active Alerts")),
@@ -136,7 +117,6 @@ app.layout = dbc.Container([
         ]), width=3),
     ], className="mb-4"),
     
-    # Sensor & Log Correlation Timeline
     dbc.Row([
         dbc.Col(dbc.Card([
             dbc.CardHeader(html.H5("🔄 Sensor & Log Correlation Timeline")),
@@ -146,7 +126,6 @@ app.layout = dbc.Container([
         ]), width=12),
     ], className="mb-4"),
     
-    # Anomaly Detection Chart and AI Insights
     dbc.Row([
         dbc.Col(dbc.Card([
             dbc.CardHeader(html.H5("📈 Real Time Anomaly Detection")),
@@ -158,7 +137,6 @@ app.layout = dbc.Container([
         ]), width=4),
     ], className="mb-4"),
     
-    # Protocol-Aware Traffic Analysis
     dbc.Row([
         dbc.Col(dbc.Card([
             dbc.CardHeader(html.H5("🔍 Protocol-Aware Traffic Analysis (from CSV)")),
@@ -173,7 +151,6 @@ app.layout = dbc.Container([
         ]), width=12),
     ], className="mb-4"),
     
-    # Threat Timeline
     dbc.Row([
         dbc.Col(dbc.Card([
             dbc.CardHeader(html.H5("⚡ Threat Timeline")),
@@ -183,8 +160,6 @@ app.layout = dbc.Container([
     
     dcc.Interval(id='interval-component', interval=2000, n_intervals=0),
 ], fluid=True, className="p-4")
-
-
 
 @app.callback(
     [Output('alerts-container', 'children'),
@@ -199,13 +174,10 @@ app.layout = dbc.Container([
      State('confidence-slider', 'value')]
 )
 def update_main_dashboard(n, threat_level, confidence_threshold):
-    # Fetch the next packet of data from our reader
     packet = data_reader.get_next_packet()
     if packet is None:
-        # This happens if the CSV file wasn't found.
         return [html.P("Error: Could not read TCP data file.")] * 7
 
-    # ALERTS 
     new_alert = create_alert_from_row(packet)
     if new_alert and new_alert['confidence'] >= confidence_threshold:
         alerts_data.append(new_alert)
@@ -214,27 +186,23 @@ def update_main_dashboard(n, threat_level, confidence_threshold):
     if not alerts_display:
         alerts_display = [html.P("No active alerts", className="text-muted")]
 
-    # PROTOCOL EVENTS
-    # Create an event dictionary similar to the old format
     protocol_event = {
         'timestamp': datetime.now(),
         'protocol': packet['Protocol'],
-        'command': packet['Flags'], # Using 'Flags' as a proxy for command
+        'command': packet['Flags'],
         'source_ip': packet['Source'],
         'destination': packet['Destination'],
         'is_anomaly': packet['is_anomaly'] == 1,
         'anomaly_type': 'Suspicious Flag' if packet['is_anomaly'] == 1 else None,
-        'response_time': packet.get('response_time', 0) * 1000 # Convert to ms
+        'response_time': packet.get('response_time', 0) * 1000
     }
     protocol_events.append(protocol_event)
 
-    # ANOMALY CHART
     response_time_data.append(packet['response_time'])
     
     time_points = list(range(len(response_time_data)))
     actual_values = list(response_time_data)
     
-    # Calculate a simple moving average as the baseline
     baseline_values = pd.Series(actual_values).rolling(window=10, min_periods=1).mean()
 
     fig_anomaly = go.Figure()
@@ -252,11 +220,6 @@ def update_main_dashboard(n, threat_level, confidence_threshold):
         title="Real-Time Network Response Time"
     )
 
-    
-    # These visualizations require data not present in the current CSV.
-    # keep their simulation logic 
-
-    # Grid Map 
     substations = pd.DataFrame({
         'name': ['North', 'East', 'South', 'West', 'Central'],
         'lat': [40.7128, 40.7580, 40.6892, 40.7489, 40.7282],
@@ -271,7 +234,6 @@ def update_main_dashboard(n, threat_level, confidence_threshold):
     )
     fig_map.update_layout(mapbox_style="carto-darkmatter", margin={"r":0,"t":0,"l":0,"b":0})
 
-    # Metrics 
     metrics_display = html.Div([
         dbc.Row([
             dbc.Col(dbc.Card(dbc.CardBody([
@@ -291,12 +253,10 @@ def update_main_dashboard(n, threat_level, confidence_threshold):
         ])
     ])
 
-    # AI Insights 
     insights = [dbc.Alert(f"Insight: Monitoring {packet['Protocol']} traffic.", color="info", className="mb-2")]
     if alerts_data:
         insights.append(dbc.Alert("Action: Critical anomalies detected. Review alerts.", color="danger"))
 
-    # Threat Timeline
     threat_history = pd.DataFrame({
         'Time': pd.to_datetime(pd.Series([datetime.now() - timedelta(hours=i) for i in range(24, 0, -1)])),
         'Threat Level': [random.randint(10, 30) + (len(alerts_data) * 10) for _ in range(24)]
@@ -304,7 +264,6 @@ def update_main_dashboard(n, threat_level, confidence_threshold):
     fig_threat = px.area(threat_history, x='Time', y='Threat Level', template='plotly_dark', color_discrete_sequence=['red'])
     fig_threat.add_hline(y=confidence_threshold, line_dash="dash", annotation_text="Alert Threshold")
 
-    # Correlation Timeline is now driven by our re-added simulation
     new_sensor_logs = generate_sensor_logs(threat_level)
     sensor_logs.extend(new_sensor_logs)
 
@@ -312,7 +271,6 @@ def update_main_dashboard(n, threat_level, confidence_threshold):
     recent_logs = sorted(list(sensor_logs), key=lambda x: x['timestamp'])
 
     if recent_logs:
-        # Plot markers for each event type
         source_map = {'network': 1, 'scada': 2, 'sensor': 3}
         for source_name, y_val in source_map.items():
             source_events = [log for log in recent_logs if log['source'] == source_name]
@@ -324,7 +282,6 @@ def update_main_dashboard(n, threat_level, confidence_threshold):
                     marker=dict(size=12, color=['red' if e['event']['status'] in ['critical', 'suspicious'] else 'green' for e in source_events])
                 ))
 
-        # Add correlation lines
         correlations = {}
         for log in recent_logs:
             cid = log.get('correlation_id')
@@ -352,8 +309,6 @@ def update_main_dashboard(n, threat_level, confidence_threshold):
 
     return (alerts_display, fig_map, fig_anomaly, metrics_display, insights, fig_threat, fig_correlation)
 
-
-
 @app.callback(
     Output('protocol-content', 'children'),
     [Input('protocol-tabs', 'active_tab'),
@@ -371,13 +326,29 @@ def update_protocol_content(active_tab, n):
             protocol_counts = df.groupby('protocol')['is_anomaly'].value_counts().unstack(fill_value=0)
             protocol_counts.rename(columns={False: 'Normal Traffic', True: 'Anomalous Traffic'}, inplace=True)
             
+            if 'Normal Traffic' not in protocol_counts.columns:
+                protocol_counts['Normal Traffic'] = 0
+            if 'Anomalous Traffic' not in protocol_counts.columns:
+                protocol_counts['Anomalous Traffic'] = 0
+
+            protocol_counts = protocol_counts.reset_index()
+
+            protocol_df_long = protocol_counts.melt(
+                id_vars='protocol', 
+                value_vars=['Normal Traffic', 'Anomalous Traffic'],
+                var_name='Traffic Type',
+                value_name='Count'
+            )
+            
             fig_protocol = px.bar(
-                protocol_counts,
-                x=protocol_counts.index,
-                y=['Normal Traffic', 'Anomalous Traffic'],
+                protocol_df_long,
+                x='protocol',
+                y='Count',
+                color='Traffic Type',
                 title='Protocol Traffic Distribution (from CSV)',
                 template='plotly_dark',
-                color_discrete_map={'Normal Traffic': '#00ff00', 'Anomalous Traffic': '#ff0000'}
+                color_discrete_map={'Normal Traffic': '#00ff00', 'Anomalous Traffic': '#ff0000'},
+                barmode='group'
             )
             return dcc.Graph(figure=fig_protocol)
         return html.P("No protocol data available", className="text-muted")
@@ -433,8 +404,6 @@ def update_protocol_content(active_tab, n):
             return html.P("No anomalous patterns detected", className="text-muted")
     return html.P("Select a tab", className="text-muted")
 
-
-# Run the app 
 if __name__ == '__main__':
     app.run(debug=True, port=8050)
 
